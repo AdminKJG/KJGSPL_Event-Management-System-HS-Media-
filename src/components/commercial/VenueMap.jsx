@@ -18,6 +18,7 @@ const fmtAED = (n) => `AED ${(n || 0).toLocaleString()}`;
 const fmtAEDK = (n) => `AED ${(n / 1000).toFixed(0)}K`;
 
 export default function VenueMap({ onNavigate }) {
+  const [stallList, setStallList] = useState(stalls);
   const [selected, setSelected] = useState('A1');
   const [filterZone, setFilterZone] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -26,13 +27,42 @@ export default function VenueMap({ onNavigate }) {
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [customRates, setCustomRates] = useState({});
 
-  const filtered = stalls.filter(s => {
+  // Stall / Spatial Form Modal state
+  const [stallModalOpen, setStallModalOpen] = useState(false);
+  const [isEditingStall, setIsEditingStall] = useState(false);
+  const [formData, setFormData] = useState({
+    id: '',
+    label: '',
+    zone: 'hall-a',
+    category: 'Premium',
+    size: '20×15 ft',
+    sqft: 300,
+    rate: 285000,
+    demand: 'High',
+    interest: 'Rising',
+    status: 'available',
+    package: 'Gold Sponsor',
+    sponsor: '',
+    powerSupply: 'Three Phase 32A',
+    powerCap: '10 kW',
+    waterSupply: 'Yes',
+    networkDrop: 'High-Speed Fiber (Dedicated)',
+    riggingPoints: 2,
+    flooringType: 'Premium Wood Finish',
+    staffCap: 6,
+    contactPerson: '',
+    contactEmail: '',
+    contactPhone: '',
+    notes: '',
+  });
+
+  const filtered = stallList.filter(s => {
     if (filterZone !== 'all' && s.zone !== filterZone) return false;
     if (filterStatus !== 'all' && s.status !== filterStatus) return false;
     return true;
   });
 
-  const selectedStall = stalls.find(s => s.id === selected) || stalls[0];
+  const selectedStall = stallList.find(s => s.id === selected) || stallList[0] || stalls[0];
   const currentRate = customRates[selectedStall?.id] || selectedStall?.rate || 0;
 
   // AI dynamic recommended price calculation (demand-based)
@@ -42,6 +72,90 @@ export default function VenueMap({ onNavigate }) {
 
   const handleApplyAiPrice = () => {
     setCustomRates(prev => ({ ...prev, [selectedStall.id]: aiRecommendedRate }));
+  };
+
+  const handleOpenAddModal = () => {
+    setIsEditingStall(false);
+    const newId = `S-${stallList.length + 1}`;
+    setFormData({
+      id: newId,
+      label: `S-0${stallList.length + 1}`,
+      zone: 'hall-a',
+      category: 'Premium',
+      size: '15×15 ft',
+      sqft: 225,
+      rate: 180000,
+      demand: 'High',
+      interest: 'Rising',
+      status: 'available',
+      package: 'Gold Sponsor',
+      sponsor: '',
+      powerSupply: 'Single Phase 16A',
+      powerCap: '5 kW',
+      waterSupply: 'No',
+      networkDrop: 'High-Speed Fiber (Dedicated)',
+      riggingPoints: 1,
+      flooringType: 'Standard Exhibition Carpet',
+      staffCap: 4,
+      contactPerson: '',
+      contactEmail: '',
+      contactPhone: '',
+      notes: '',
+    });
+    setStallModalOpen(true);
+  };
+
+  const handleOpenEditModal = (stallToEdit) => {
+    setIsEditingStall(true);
+    const s = stallToEdit || selectedStall;
+    setFormData({
+      id: s.id,
+      label: s.label || s.id,
+      zone: s.zone || 'hall-a',
+      category: s.category || 'Standard',
+      size: s.size || '15×12 ft',
+      sqft: s.sqft || 180,
+      rate: customRates[s.id] || s.rate || 150000,
+      demand: s.demand || 'Medium',
+      interest: s.interest || 'Stable',
+      status: s.status || 'available',
+      package: s.package || 'Silver Sponsor',
+      sponsor: s.sponsor || '',
+      powerSupply: s.powerSupply || 'Three Phase 32A',
+      powerCap: s.powerCap || '10 kW',
+      waterSupply: s.waterSupply || 'No',
+      networkDrop: s.networkDrop || 'High-Speed Fiber (Dedicated)',
+      riggingPoints: s.riggingPoints || 2,
+      flooringType: s.flooringType || 'Premium Wood Finish',
+      staffCap: s.staffCap || 4,
+      contactPerson: s.contactPerson || (s.sponsor ? 'Corporate Marketing Lead' : ''),
+      contactEmail: s.contactEmail || (s.sponsor ? `partners@${s.sponsor.toLowerCase().replace(/\s+/g, '')}.ae` : ''),
+      contactPhone: s.contactPhone || '+971 4 200 9000',
+      notes: s.notes || 'Includes custom banner truss and front reception counter.',
+    });
+    setStallModalOpen(true);
+  };
+
+  const handleSaveStall = (e) => {
+    e.preventDefault();
+    if (isEditingStall) {
+      setStallList(prev => prev.map(item => item.id === formData.id ? { ...item, ...formData } : item));
+    } else {
+      // Calculate coordinates for newly added stall
+      const count = stallList.length;
+      const x = 60 + ((count * 95) % 450);
+      const y = formData.zone === 'hall-a' ? 160 : formData.zone === 'hall-b' ? 320 : 470;
+      const newStallObj = {
+        ...formData,
+        x,
+        y,
+        w: 90,
+        h: 65,
+      };
+      setStallList(prev => [...prev, newStallObj]);
+      setSelected(newStallObj.id);
+    }
+    setStallModalOpen(false);
   };
 
   return (
@@ -80,6 +194,14 @@ export default function VenueMap({ onNavigate }) {
 
           <button
             className="btn btn-secondary btn-sm"
+            onClick={handleOpenAddModal}
+            style={{ gap: 6 }}
+          >
+            <span>📐</span> + Add / Configure Stall Form
+          </button>
+
+          <button
+            className="btn btn-secondary btn-sm"
             onClick={() => setAiModalOpen(true)}
             style={{ gap: 6 }}
           >
@@ -104,10 +226,10 @@ export default function VenueMap({ onNavigate }) {
         gap: 12,
       }}>
         {[
-          { label: 'Total Stalls', value: stalls.length, sub: '15 Active Zones', color: 'var(--brand)' },
-          { label: 'Available', value: stalls.filter(s => s.status === 'available').length, sub: 'Ready for sale', color: 'var(--success)' },
-          { label: 'Interested', value: stalls.filter(s => s.status === 'interested').length, sub: 'Under negotiation', color: 'var(--warning)' },
-          { label: 'Confirmed Booked', value: stalls.filter(s => s.status === 'booked').length, sub: 'AED 1.88M committed', color: 'var(--danger)' },
+          { label: 'Total Stalls', value: stallList.length, sub: '15 Active Zones', color: 'var(--brand)' },
+          { label: 'Available', value: stallList.filter(s => s.status === 'available').length, sub: 'Ready for sale', color: 'var(--success)' },
+          { label: 'Interested', value: stallList.filter(s => s.status === 'interested').length, sub: 'Under negotiation', color: 'var(--warning)' },
+          { label: 'Confirmed Booked', value: stallList.filter(s => s.status === 'booked').length, sub: 'AED 1.88M committed', color: 'var(--danger)' },
         ].map((s, idx) => (
           <div key={idx} style={{
             background: 'var(--surface-2)', border: '1px solid var(--border)',
@@ -420,6 +542,16 @@ export default function VenueMap({ onNavigate }) {
                 </div>
               </div>
 
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  onClick={() => handleOpenEditModal(selectedStall)}
+                  className="btn btn-secondary btn-sm w-full"
+                  style={{ gap: 6, fontWeight: 700 }}
+                >
+                  <span>✏️</span> Edit Stall Specifications & Data Form
+                </button>
+              </div>
+
               {selectedStall.sponsor && (
                 <div style={{
                   padding: '12px 14px', background: 'rgba(239, 68, 68, 0.1)',
@@ -534,6 +666,179 @@ export default function VenueMap({ onNavigate }) {
           </div>
         </div>
       </div>
+
+      {/* Spatial Data Input & Stall Configuration Form Modal */}
+      {stallModalOpen && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal" style={{ maxWidth: 680, maxHeight: '90vh', padding: 24 }}>
+            <div className="modal-header" style={{ marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {isEditingStall ? `Edit Stall Data Form — ${formData.label || formData.id}` : 'Create New Spatial Zone / Booth Form'}
+                  </span>
+                  <span className="badge badge-brand" style={{ fontSize: 10 }}>Spatial Schema</span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                  Configure dimensional specs, electrical utility loads, commercial price rules & tenant assignment.
+                </p>
+              </div>
+              <button className="modal-close" onClick={() => setStallModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveStall} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Section 1: Identification & Zone */}
+              <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--brand)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                  1. Zone & Identification Fields
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Stall Code *</label>
+                    <input className="input" value={formData.label} onChange={e => setFormData({ ...formData, label: e.target.value })} placeholder="e.g. A-08" required style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Venue Zone *</label>
+                    <select className="select" value={formData.zone} onChange={e => setFormData({ ...formData, zone: e.target.value })} style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}>
+                      <option value="hall-a">Hall A — Innovation & AI</option>
+                      <option value="hall-b">Hall B — EdTech & Talent</option>
+                      <option value="hall-c">Hall C — Immersive Brands</option>
+                      <option value="food">Outdoor F&B Area</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Stall Category *</label>
+                    <select className="select" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}>
+                      <option value="Premium">Premium Sponsor Booth</option>
+                      <option value="Standard">Standard Exhibitor</option>
+                      <option value="Experience">Immersive Tech / VR</option>
+                      <option value="Startup">Startup Kiosk</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Spatial & Physical Specifications */}
+              <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--brand)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                  2. Spatial & Dimension Fields
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Dimensions *</label>
+                    <input className="input" value={formData.size} onChange={e => setFormData({ ...formData, size: e.target.value })} placeholder="e.g. 20×15 ft" required style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Floor Area (sq ft) *</label>
+                    <input type="number" className="input" value={formData.sqft} onChange={e => setFormData({ ...formData, sqft: Number(e.target.value) })} required style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Flooring Finish</label>
+                    <select className="select" value={formData.flooringType} onChange={e => setFormData({ ...formData, flooringType: e.target.value })} style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}>
+                      <option value="Standard Exhibition Carpet">Exhibition Carpet</option>
+                      <option value="Premium Wood Finish">Premium Wood Laminate</option>
+                      <option value="Custom Raised Deck">Raised Platform Deck</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Staff Cap Limit</label>
+                    <input type="number" className="input" value={formData.staffCap} onChange={e => setFormData({ ...formData, staffCap: Number(e.target.value) })} style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Technical & Utilities */}
+              <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--brand)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                  3. Utilities & Infrastructure Fields
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Power Supply</label>
+                    <select className="select" value={formData.powerSupply} onChange={e => setFormData({ ...formData, powerSupply: e.target.value })} style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}>
+                      <option value="Single Phase 16A">Single Phase 16A</option>
+                      <option value="Three Phase 32A">Three Phase 32A</option>
+                      <option value="63A Heavy Duty">63A Heavy Duty</option>
+                      <option value="Unpowered">Unpowered Booth</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Power Load (kW)</label>
+                    <input className="input" value={formData.powerCap} onChange={e => setFormData({ ...formData, powerCap: e.target.value })} placeholder="e.g. 10 kW" style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Water / Drainage</label>
+                    <select className="select" value={formData.waterSupply} onChange={e => setFormData({ ...formData, waterSupply: e.target.value })} style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}>
+                      <option value="No">No Water Connection</option>
+                      <option value="Yes">Yes (Direct Feed)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Rigging Truss Points</label>
+                    <input type="number" className="input" value={formData.riggingPoints} onChange={e => setFormData({ ...formData, riggingPoints: Number(e.target.value) })} style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Commercials, Status & Sponsor Assignment */}
+              <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--brand)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                  4. Commercial & Booking Allocation Fields
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Base Price (AED) *</label>
+                    <input type="number" className="input" value={formData.rate} onChange={e => setFormData({ ...formData, rate: Number(e.target.value) })} required style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Booking Status *</label>
+                    <select className="select" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}>
+                      <option value="available">Available for Sale</option>
+                      <option value="interested">Reserved / Under Negotiation</option>
+                      <option value="booked">Booked & Confirmed</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Target Sponsor Tier</label>
+                    <select className="select" value={formData.package} onChange={e => setFormData({ ...formData, package: e.target.value })} style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}>
+                      <option value="Platinum Sponsor">Platinum Sponsor</option>
+                      <option value="Gold Sponsor">Gold Sponsor</option>
+                      <option value="Silver Sponsor">Silver Sponsor</option>
+                      <option value="Bronze Sponsor">Bronze Sponsor</option>
+                      <option value="Custom Booth">Custom Stand</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Sponsor / Company Name</label>
+                    <input className="input" value={formData.sponsor} onChange={e => setFormData({ ...formData, sponsor: e.target.value })} placeholder="e.g. Emirates NBD" style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Lead Contact Email</label>
+                    <input type="email" className="input" value={formData.contactEmail} onChange={e => setFormData({ ...formData, contactEmail: e.target.value })} placeholder="partner@brand.ae" style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Contact Phone</label>
+                    <input className="input" value={formData.contactPhone} onChange={e => setFormData({ ...formData, contactPhone: e.target.value })} placeholder="+971 50 000 0000" style={{ padding: '8px 10px', fontSize: 13 }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                <button type="button" className="btn btn-ghost" onClick={() => setStallModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ padding: '9px 22px', fontWeight: 700 }}>
+                  {isEditingStall ? 'Save Stall Changes' : 'Create & Place Stall'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Global AI Copilot Modal */}
       <AiCopilotModal
